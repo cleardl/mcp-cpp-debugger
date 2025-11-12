@@ -1,0 +1,22 @@
+[project]
+name = "mcp-cpp-debugger"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=2.11.3",
+]
+
+[project.scripts]
+mcp-cpp-debugger = "mcp_cpp_debugger.mcp.server:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.package-dir]
+"mcp_cpp_debugger" = "src/mcp_cpp_debugger"
+
+[tool.setuptools.packages.find]
+where = ["src"]
