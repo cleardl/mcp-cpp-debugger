@@ -14,7 +14,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 **安装项目依赖：**
 ```bash
 uv sync
-uv pip install -e .
+pip install -e .
 ```
 
 ### 2. 启动MCP服务器
