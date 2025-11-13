@@ -286,13 +286,38 @@ async def get_debugger_status() -> str:
         return f"Error getting debugger status: {str(e)}"
 
 def main():
+    import argparse
     import logging
     import traceback
+
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(
+        description='MCP C++ Debugger Server',
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        '--transport',
+        type=str,
+        choices=['stdio', 'http'],
+        default='http',
+        help='Transport protocol to use (default: http)'
+    )
+    parser.add_argument(
+        '-p', '--port',
+        type=int,
+        default=8999,
+        help='Port number for streamable-http transport (default: 8999)'
+    )
+    
+    args = parser.parse_args()
+    
     try:
-
-        server.run(transport="sse", port=8999)
+        if args.transport == 'stdio':
+            server.run(transport='stdio')
+        elif args.transport == 'http':
+            server.run(transport='streamable-http', port=args.port)
     except KeyboardInterrupt:
         logging.info("Server stopped by user")
     except Exception as e:

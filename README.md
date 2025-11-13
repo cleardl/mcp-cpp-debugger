@@ -15,36 +15,66 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 ```bash
 uv sync
 pip install -e .
-```
-
-### 2. 启动MCP服务器
-
-```powershell
-./mcp-cpp-debugger.exe
-```
-
-或使用Python直接运行：
-```bash
-python -m mcp_cpp_debugger.mcp.server
+//uv run
 ```
 
 ### 3. 配置MCP客户端
 
-在MCP客户端（Claude CLI / Cursor / VS Code Copilot / Visual Studio）中添加配置：
+在MCP客户端（Claude CLI / Cursor / VS Code Copilot / Visual Studio）中添加配置。
 
+支持两种传输方式：
+
+#### 方式一：stdio（推荐）
+
+客户端自动启动和管理调试器进程，通过标准输入输出通信。
+
+**配置示例：**
 ```json
 {
   "mcpServers": {
     "mcp-cpp-debugger": {
-      "url": "http://localhost:8999/sse/"
+      "command": "mcp-cpp-debugger",
+      "args": ["--transport", "stdio"]
     }
   }
 }
 ```
 
-**以Cursor为例：**
+**优点：**
+- ✅ 自动管理进程生命周期
+- ✅ 无需手动启动服务器
+- ✅ 无端口冲突问题
 
-在MCP配置中添加后，启动mcp-cpp-debugger服务即可使用：
+---
+
+#### 方式二：streamable-http
+
+手动启动服务器进程，客户端通过 HTTP 连接。
+
+**第一步：启动服务器**
+```bash
+mcp-cpp-debugger --transport http --port 8999
+# 或使用简写
+mcp-cpp-debugger -p 8999
+```
+
+**第二步：配置客户端**
+```json
+{
+  "mcpServers": {
+    "mcp-cpp-debugger": {
+      "url": "http://localhost:8999/mcp"
+    }
+  }
+}
+```
+
+**优点：**
+- ✅ 可查看服务器日志
+- ✅ 适合开发调试
+- ✅ 支持多客户端连接
+
+**注意：** 默认端口为 8999，可通过 `--port` 或 `-p` 参数修改。
 
 ### 4. 开始调试
 
