@@ -198,6 +198,7 @@ class CDB_Session:
                 )
     
     def execute_command(self, command: str) -> str:
+        timeout:int=None
         if not self.process or self.process.poll() is not None or self.session_state == Session_State.UNSTARTED:
             return create_debugger_response(
                 success=False,
@@ -232,8 +233,11 @@ class CDB_Session:
                 debug_output="Target program is now running"
             )
 
+        if command=='p' or command=='t' or command=='gu':
+            timeout=10
+
         try:
-            result = self._wait_for_prompt()
+            result = self._wait_for_prompt(timeout=timeout)
             if self.source_path_map and self.debug_mode == Debug_Mode.DUMP_ANALYSIS:
                 result = self.transform_output_paths(result)
             return create_debugger_response(
@@ -419,7 +423,7 @@ class CDB_Session:
         except Exception as e:
             session_logger.error(f"CDB output reader error: {e}")
 
-    def _wait_for_prompt(self, timeout:int=10):
+    def _wait_for_prompt(self, timeout:int=None):
         self.ready_event.clear()
         if self.ready_event.wait(timeout=timeout):
             with self.lock:
