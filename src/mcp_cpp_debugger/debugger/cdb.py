@@ -10,13 +10,8 @@ from typing import Optional
 
 from .utils import Session_State, Debug_Mode, Target_Process_State, create_debugger_response
 
-logger = logging.getLogger("cdb_debugger")
-logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s  - %(lineno)d - %(levelname)s - %(message)s')
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
-
+session_logger = logging.getLogger("cdb_session")
+cdb_output_logger = logging.getLogger("debugger_output")
 default_cdb_path = "cdb.exe"
 
 ERROR_SESSION_NOT_STARTED = "CDB debug session is not running, please start a debug session first"
@@ -51,7 +46,6 @@ class CDB_Session:
         self.executable_path = executable_path.replace('\\', '/') if executable_path else None
         self.args = args.split(' ') if args else None
         self.symbol_path = symbol_path.replace('\\', '/') if symbol_path else None
-        logger.info(f"Launch params - executable: {self.executable_path}, symbol_path: {self.symbol_path}")
         start_args = [self.executable_path]
         if self.args:
             start_args.extend(self.args)
@@ -97,7 +91,9 @@ class CDB_Session:
                 bufsize=0,
                 creationflags=creation_flags,
             )
+
             self.start_cmdline=' '.join(self._build_start_cmdline(start_args))
+            session_logger.info(f"CDB process start cmdline: {self.start_cmdline}")
             self.reader_thread = threading.Thread(target=self._read_output)
             self.reader_thread.daemon = True
             self.reader_thread.start()
@@ -135,22 +131,16 @@ class CDB_Session:
             visualizers_dir = cdb_dir / "Visualizers"
             if visualizers_dir.exists() and visualizers_dir.is_dir():
                 natvis_files = list(visualizers_dir.glob("*.natvis"))
-                logger.info(f"Found {len(natvis_files)} natvis files in {visualizers_dir}")
                 for natvis_file in natvis_files:
                     load_result = self.execute_command(f'.nvload "{natvis_file}"')
-                    logger.info(f"Loaded {natvis_file.name}: {load_result}")
+                    session_logger.info(f"Loaded {natvis_file.name}: {load_result}")
             else:
-                logger.warning(f"Visualizers directory not found: {visualizers_dir}")
+                session_logger.warning(f"Visualizers directory not found: {visualizers_dir}")
         else:
-            logger.warning(f"Cannot find cdb executable: {self.cdb_path}")
+            session_logger.warning(f"Cannot find cdb executable: {self.cdb_path}")
     
     def _send_ctrl_c(self) -> bool:
-        if not self.process:
-            logger.error("CDB process not started")
-            return False
-        
-        if self.process.poll() is not None:
-            logger.error("CDB process has already terminated")
+        if not self.process or self.process.poll() is not None:
             return False
         
         try:
@@ -161,20 +151,20 @@ class CDB_Session:
                     
                     result = kernel32.GenerateConsoleCtrlEvent(1, self.process.pid)
                     if result:
-                        logger.info(f"Successfully sent CTRL_BREAK_EVENT to process group {self.process.pid}")
+                        session_logger.info(f"Successfully sent CTRL_BREAK_EVENT to process group {self.process.pid}")
                         return True
                     else:
                         error_code = kernel32.GetLastError()
-                        logger.warning(f"GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT) failed with error code: {error_code}")
+                        session_logger.warning(f"GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT) failed with error code: {error_code}")
                         
                 except Exception as e:
-                    logger.warning(f"GenerateConsoleCtrlEvent method failed: {e}")
+                    session_logger.warning(f"GenerateConsoleCtrlEvent method failed: {e}")
             else:
                 #todo: send signal to process group
                 raise Exception("Not implemented")
                 
         except Exception as e:
-            logger.error(f"Failed to interrupt target program: {str(e)}")
+            session_logger.error(f"Failed to interrupt target program: {str(e)}")
             return False
 
     def interrupt_target_program(self) -> str:
@@ -193,7 +183,6 @@ class CDB_Session:
         else:
             if self._send_ctrl_c():
                 result = self._wait_for_prompt()
-                logger.info(f"Interrupted target program successfully: {result}")
                 self.target_process_state = Target_Process_State.PAUSED
                 #todo:don't return debug_output
                 return create_debugger_response(
@@ -330,13 +319,11 @@ class CDB_Session:
                     if parts[i] == target_dir:
                         remaining_path = '/'.join(parts[i+1:])
                         local_path = local_base.rstrip('/') + '/' + remaining_path
-                        logger.debug(f"Path mapping applied: {remote_path} -> {local_path}")
                         return local_path
             else:
                 if normalized_path.startswith(pattern_key):
                     remaining = normalized_path[len(pattern_key):].lstrip('/')
                     local_path = local_base.rstrip('/') + '/' + remaining
-                    logger.debug(f"Path mapping applied: {remote_path} -> {local_path}")
                     return local_path
         
         return remote_path
@@ -354,9 +341,6 @@ class CDB_Session:
             return mapped_path
         
         transformed = re.sub(path_pattern, replace_path, output, flags=re.IGNORECASE)
-        
-        if transformed != output:
-            logger.info("Output paths have been transformed using source path mapping")
         
         return transformed
     
@@ -387,20 +371,19 @@ class CDB_Session:
             cmdline.extend(['-y', self.symbol_path])
         if start_args:
             cmdline.extend(start_args)
-        logger.info(cmdline)
         return cmdline
 
     def _send_command(self,command:str)->str:
         try:
+            session_logger.info(f"_ _ _ _ _ _ _send command: {command}")
             self.process.stdin.write(f"{command}\n".encode('utf-8'))
             self.process.stdin.flush()
-            logger.info(f"Command sent successfully: {command}")
         except Exception as e:
-            logger.error(f"Failed to send command: {command} - {str(e)}", exc_info=True)
+            session_logger.error(f"Failed to send command: {command} - {str(e)}", exc_info=True)
 
     def _read_output(self):
         if not self.process or not self.process.stdout:
-            logger.error("CDB process is None or stdout is None")
+            session_logger.error("try read CDB output, but CDB process is None or stdout is None")
             return
         
         buffer = []
@@ -411,9 +394,8 @@ class CDB_Session:
             if not line:
                 return
             line_str = line.decode('utf-8', errors='ignore').strip()
-            print(f"CDB:{line_str}")
             if line_str:
-                logger.debug(f"CDB:{line_str}")
+                cdb_output_logger.debug(f"{line_str}")
                 buffer.append(line_str)
                 if re.search(r'[0-9]:[0-9]+>', line_str):
                     self.session_state = Session_State.IDLE
@@ -421,7 +403,7 @@ class CDB_Session:
                     with self.lock:
                         self.output_lines = buffer[:-1]
                         self.ready_event.set()
-                    logger.info("CDB prompt detected")
+                    session_logger.debug("dected prompt")
                     buffer = []
                     raw_buffer=b""
 
@@ -435,7 +417,7 @@ class CDB_Session:
                 handle_line_buffer(raw_buffer)
                     
         except Exception as e:
-            logger.error(f"CDB output reader error: {e}")
+            session_logger.error(f"CDB output reader error: {e}")
 
     def _wait_for_prompt(self, timeout:int=10):
         self.ready_event.clear()
@@ -453,20 +435,20 @@ class CDB_Session:
                 self.process.terminate()
                 self.process.wait(timeout=3)
             except subprocess.TimeoutExpired:
-                logger.warning("Process termination timeout, killing forcefully")
+                session_logger.warning("Process termination timeout, killing forcefully")
                 self.process.kill()
                 self.process.wait()
             except Exception as e:
-                logger.error(f"Error terminating process: {e}")
+                session_logger.error(f"Error terminating process: {e}")
         self.process = None
         
         if self.reader_thread and self.reader_thread.is_alive():
             try:
                 self.reader_thread.join(timeout=3)
                 if self.reader_thread.is_alive():
-                    logger.warning("Reader thread did not terminate in time")
+                    session_logger.warning("Reader thread did not terminate in time")
             except Exception as e:
-                logger.error(f"Error joining reader thread: {e}")
+                session_logger.error(f"Error joining reader thread: {e}")
         self.reader_thread = None
 
         self.session_state = Session_State.UNSTARTED
@@ -486,4 +468,4 @@ class CDB_Session:
         if hasattr(self, 'dump_file_path'):
             self.dump_file_path = None
     
-        logger.info("CDB session status has been reset")
+        session_logger.info("CDB session status has been reset")

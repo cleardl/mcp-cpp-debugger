@@ -289,10 +289,8 @@ def main():
     import argparse
     import logging
     import traceback
+    from mcp_cpp_debugger.utils.log_utils import init_logging
 
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    
-    # 解析命令行参数
     parser = argparse.ArgumentParser(
         description='MCP C++ Debugger Server',
         formatter_class=argparse.RawDescriptionHelpFormatter
@@ -310,8 +308,24 @@ def main():
         default=8999,
         help='Port number for streamable-http transport (default: 8999)'
     )
+    parser.add_argument(
+        '--log-level',
+        type=str,
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        default='INFO',
+        help='Set the logging level (default: INFO)'
+    )
+    parser.add_argument(
+        '--log-dir',
+        type=str,
+        default=None,
+        help='Directory for log files (default: %APPDATA%/mcp-cpp-debugger/logs)'
+    )
     
     args = parser.parse_args()
+
+    init_logging(level=args.log_level, log_dir=args.log_dir)
+    logger = logging.getLogger(__name__)
     
     try:
         if args.transport == 'stdio':
@@ -319,12 +333,12 @@ def main():
         elif args.transport == 'http':
             server.run(transport='streamable-http', port=args.port)
     except KeyboardInterrupt:
-        logging.info("Server stopped by user")
+        logger.info("Server stopped by user")
     except Exception as e:
-        logging.error(f"Error running server: {e}")
-        logging.error(f"Full traceback: {traceback.format_exc()}")
+        logger.error(f"Error running server: {e}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
     finally:
-        logging.info("Server process ending")
+        logger.info("Server process ending")
 
 if __name__ == "__main__":
     main()
