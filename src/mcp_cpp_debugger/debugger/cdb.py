@@ -55,6 +55,32 @@ class CDB_Session:
             post_start_commands=['l+t'],
         )
 
+    def attach(
+        self, 
+        process_id: int = -1, 
+        process_name: str = None,
+        cdb_path: str = default_cdb_path,
+        symbol_path: str = None,
+    ) -> str:
+        if process_id == -1 and not process_name:
+            return "Error: Either process_id or process_name must be provided"
+        
+        if process_id != -1:
+            start_args = ['-p', str(process_id)]
+            session_logger.info(f"Attaching to process by PID: {process_id}")
+        else:
+            start_args = ['-pn', process_name]
+            session_logger.info(f"Attaching to process by name: {process_name}")
+
+        self.symbol_path = symbol_path.replace('\\', '/') if symbol_path else None
+        self.debug_mode = Debug_Mode.ATTACH
+        self.cdb_path = cdb_path
+        
+        return self._start_cdb_process(
+            start_args=start_args,
+            post_start_commands=['l+t'],
+        )
+
     def analyze_dump(self, dump_file_path: str,symbol_path: str = None,cdb_path: str = default_cdb_path,source_path_map: dict[str,str] = {}) -> str:
         self.source_path_map = source_path_map
         self.debug_mode = Debug_Mode.DUMP_ANALYSIS

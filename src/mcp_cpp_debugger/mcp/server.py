@@ -40,6 +40,38 @@ async def launch(
         return f"Error starting debugger: {str(e)}"
 
 @server.tool()
+async def attach(
+    process_id: int = -1,
+    process_name: str = "",
+    cdb_path: str = "cdb.exe",
+    symbol_path: str = "",
+) -> str:
+    """
+    Attach CDB debugger to a running process by PID or process name
+    Args:
+        process_id: Process ID to attach to (takes priority over process_name)
+        process_name: Process name to attach to (e.g., "notepad.exe")
+        cdb_path: Path to CDB executable (default: "cdb.exe")
+        
+    Returns:
+        str: Result message from CDB debugger attach operation
+        
+    Examples:
+        - Attach by PID: attach(process_id=1234)
+        - Attach by name: attach(process_name="notepad.exe")
+    """
+    try:
+        result = await asyncio.to_thread(
+            cdb_session.attach,
+            process_id=process_id,
+            process_name=process_name,
+            cdb_path=cdb_path
+        )
+        return result
+    except Exception as e:
+        return f"Error attaching to process: {str(e)}"
+
+@server.tool()
 async def analyze_dump(dump_file_path: str,symbol_path: str = "",cdb_path: str = "cdb.exe",source_path_map: dict[str,str] = {"*/Coding":"C:/Users/wps/workspace/master_kso_v12/Coding"}) -> str:
     """
     Analyze a dump file with specified parameter
@@ -53,7 +85,6 @@ async def analyze_dump(dump_file_path: str,symbol_path: str = "",cdb_path: str =
         return result
     except Exception as e:
         return f"Error analyzing dump: {str(e)}"
-
 
 @server.tool()
 async def continue_execution() -> str:
