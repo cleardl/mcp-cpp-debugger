@@ -14,8 +14,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 **安装项目依赖：**
 ```bash
 uv sync
-pip install -e .
-//uv run
+uv tool install mcp-cpp-debugger@latest
 ```
 
 ### 3. 配置MCP客户端
@@ -33,7 +32,7 @@ pip install -e .
 {
   "mcpServers": {
     "mcp-cpp-debugger": {
-      "command": "mcp-cpp-debugger",
+      "command": "uvx mcp-cpp-debugger",
       "args": ["--transport", "stdio"]
     }
   }
@@ -53,9 +52,9 @@ pip install -e .
 
 **第一步：启动服务器**
 ```bash
-mcp-cpp-debugger --transport http --port 8999
+uvx mcp-cpp-debugger --transport http --port 8999
 # 或使用简写
-mcp-cpp-debugger -p 8999
+uvx mcp-cpp-debugger -p 8999
 ```
 
 **第二步：配置客户端**

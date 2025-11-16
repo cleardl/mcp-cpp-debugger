@@ -350,7 +350,7 @@ def main():
         '--log-dir',
         type=str,
         default=None,
-        help='Directory for log files (default: %APPDATA%/mcp-cpp-debugger/logs)'
+        help='Directory for log files (default: user AppData/mcp-cpp-debugger/logs)'
     )
     
     args = parser.parse_args()
