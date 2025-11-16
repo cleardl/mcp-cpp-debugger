@@ -440,6 +440,20 @@ class CDB_Session:
         try:
             while self.process and self.process.poll() is None:
                 chunk = self.process.stdout.read(1024)
+                if self.process.poll() is not None:
+                    #todo:need to notify mcp-server,let mcp-server notify mcp-client
+                    line_str = chunk.decode('utf-8', errors='ignore').strip()
+                    if line_str:
+                        cdb_output_logger.debug(f"{line_str}")
+                        buffer.append(line_str)
+                        with self.lock:
+                            self.output_lines=buffer[:-1]
+                            self.ready_event.set()
+                    buffer=[]
+                    raw_buffer=[]
+                    self._reset_status()
+                    break   
+
                 raw_buffer += chunk
                 while b'\n' in raw_buffer:
                     line, raw_buffer = raw_buffer.split(b'\n', 1)
