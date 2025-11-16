@@ -6,6 +6,7 @@ import os
 import json
 import shutil
 from pathlib import Path
+from time import sleep
 from typing import Optional
 
 from .utils import Session_State, Debug_Mode, Target_Process_State, create_debugger_response
@@ -123,10 +124,10 @@ class CDB_Session:
             self.reader_thread = threading.Thread(target=self._read_output)
             self.reader_thread.daemon = True
             self.reader_thread.start()
+            output = self._wait_for_prompt()
 
             if self.process.poll() is None:
                 try:
-                    output = self._wait_for_prompt()
                     self._load_natvis_files()
                     for cmd in post_start_commands:
                         output+=self.execute_command(cmd)
@@ -139,11 +140,18 @@ class CDB_Session:
                 except Exception as e:
                     raise Exception(f"CDB process startup failed: {str(e)}")
             else:
-                raise Exception(f"CDB process terminated with code: {self.process.poll()}")
+                if output:
+                    raise Exception(f"CDB process terminated with output: {output}")
+                else:
+                    raise Exception(f"CDB process terminated with code: {self.process.poll()}")
 
         except Exception as e:
             self._reset_status() 
-            raise Exception(f"CDB process startup failed: {str(e)}")
+            return create_debugger_response(
+                success=False,
+                command=self.start_cmdline,
+                error_message=f"CDB process startup failed: {str(e)}"
+            )
 
     def _load_natvis_files(self):
         cdb_path_obj = Path(self.cdb_path)
@@ -447,11 +455,11 @@ class CDB_Session:
                         cdb_output_logger.debug(f"{line_str}")
                         buffer.append(line_str)
                         with self.lock:
-                            self.output_lines=buffer[:-1]
+                            self.output_lines=buffer
+                            sleep(0.01)
                             self.ready_event.set()
                     buffer=[]
                     raw_buffer=[]
-                    self._reset_status()
                     break   
 
                 raw_buffer += chunk
